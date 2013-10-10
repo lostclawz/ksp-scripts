@@ -1,0 +1,1952 @@
+{*************************
+pkStackTables
+Unison Script by Philip Kuperberg
+**************************}
+on init
+  {set_control_par_str($INST_WALLPAPER_ID,$CONTROL_PAR_PICTURE,"stacktables_bg.png")}
+  set_script_title("pkStackTables")
+  set_ui_height(5)
+  message("")
+  declare %allvoices[32]
+  declare polyphonic $incoming_note
+  declare polyphonic $new_note
+  declare polyphonic $new_offset
+  declare polyphonic $incoming_velocity
+  declare polyphonic $new_velocity
+  declare polyphonic $i
+  declare $z
+  declare $change
+  declare $range
+  declare $detune_range := 100000
+  declare $velocity_range := 127
+  declare $offset_range := 10000
+  declare $db_range := 3000
+  declare $pan_range := 1000
+  declare $keyboard_range := 24
+  declare ui_label $stacktitle(100, 10) 
+  set_text($stacktitle,"PK STACK")
+  set_control_par(get_ui_id($stacktitle),$CONTROL_PAR_FONT_TYPE,19)
+  set_control_par(get_ui_id($stacktitle),$CONTROL_PAR_TEXT_ALIGNMENT,2)
+  hide_part($stacktitle,$HIDE_PART_BG)
+  declare ui_knob $Voices(1, 32, 1) 
+  set_control_help($Voices,"The number of voices triggered by each incoming midi note.")
+  declare ui_value_edit $transformation_amount(0, 1000, 10) 
+  set_text($transformation_amount,"")
+  set_control_help($transformation_amount,"Amount to apply transformation")
+  declare ui_menu $display_choices
+  add_menu_item($display_choices,"detune spread",0)
+  add_menu_item($display_choices,"panning spread",1)
+  add_menu_item($display_choices,"velocity spread",2)
+  add_menu_item($display_choices,"offset spread",3)
+  add_menu_item($display_choices,"decibel spread",4)
+  add_menu_item($display_choices,"keyboard spread",5)
+  declare ui_menu $transformation
+  add_menu_item($transformation,"clear",0)
+  add_menu_item($transformation,"invert",1)
+  add_menu_item($transformation,"halve",2)
+  add_menu_item($transformation,"double",3)
+  add_menu_item($transformation,"%",4)
+  add_menu_item($transformation,"linear",5)
+  add_menu_item($transformation,"expon",6)
+  add_menu_item($transformation,"rnd 100%",7)
+  add_menu_item($transformation,"rnd +",8)
+  add_menu_item($transformation,"rnd -",9)
+  declare ui_menu $applyto
+  add_menu_item($applyto,"all",0)
+  add_menu_item($applyto,"even",1)
+  add_menu_item($applyto,"odd",2)
+  declare ui_button $transform
+  set_text($transform,"Apply")
+  declare ui_knob $global_amount(0, 1000, 10) 
+  set_text($global_amount,"Amount")
+  set_control_help($global_amount,"Global amount.")
+  declare const $tableheight := 130
+  declare const $tablewidth := 602
+  declare ui_table %detune_spread[32](1, 1, -$detune_range) 
+  declare ui_table %velocity_spread[32](1, 1, -$velocity_range) 
+  declare ui_table %offset_spread[32](1, 1, $offset_range) 
+  declare ui_table %db_spread[32](1, 1, -$db_range) 
+  declare ui_table %pan_spread[32](1, 1, -$pan_range) 
+  declare ui_table %keyboard_spread[32](1, 1, -$keyboard_range) 
+  set_control_par(get_ui_id(%detune_spread),$CONTROL_PAR_WIDTH,$tablewidth)
+  set_control_par(get_ui_id(%detune_spread),$CONTROL_PAR_HEIGHT,$tableheight)
+  set_control_par(get_ui_id(%velocity_spread),$CONTROL_PAR_WIDTH,$tablewidth)
+  set_control_par(get_ui_id(%velocity_spread),$CONTROL_PAR_HEIGHT,$tableheight)
+  set_control_par(get_ui_id(%offset_spread),$CONTROL_PAR_WIDTH,$tablewidth)
+  set_control_par(get_ui_id(%offset_spread),$CONTROL_PAR_HEIGHT,$tableheight)
+  set_control_par(get_ui_id(%db_spread),$CONTROL_PAR_WIDTH,$tablewidth)
+  set_control_par(get_ui_id(%db_spread),$CONTROL_PAR_HEIGHT,$tableheight)
+  set_control_par(get_ui_id(%pan_spread),$CONTROL_PAR_WIDTH,$tablewidth)
+  set_control_par(get_ui_id(%pan_spread),$CONTROL_PAR_HEIGHT,$tableheight)
+  set_control_par(get_ui_id(%keyboard_spread),$CONTROL_PAR_WIDTH,$tablewidth)
+  set_control_par(get_ui_id(%keyboard_spread),$CONTROL_PAR_HEIGHT,$tableheight)
+  set_control_par(get_ui_id($transformation_amount),$CONTROL_PAR_WIDTH,45)
+  set_control_par(get_ui_id($transformation),$CONTROL_PAR_WIDTH,70)
+  set_control_par(get_ui_id($display_choices),$CONTROL_PAR_WIDTH,163)
+  set_control_par(get_ui_id($applyto),$CONTROL_PAR_WIDTH,45)
+  set_control_par(get_ui_id($transform),$CONTROL_PAR_WIDTH,40)
+  set_control_par(get_ui_id($transformation_amount),$CONTROL_PAR_DEFAULT_VALUE,1000)
+  set_control_help(%detune_spread,"Amount to detune each voice (bipolar, up to 1 half step in each direction).")
+  set_control_help(%velocity_spread,"Add or subtract a number from each voice's velocity (bipolar).")
+  set_control_help(%offset_spread,"Add a short offset to each voice's sample start position (unipolar, up to 100 milliseconds).")
+  set_control_help(%db_spread,"Change the volume, in decibels, of each voice (bipolar, 3 db range).")
+  set_control_help(%pan_spread,"Change the panning of each voice, top is right, bottom is left (bipolar).")
+  set_control_help(%keyboard_spread,"Change each voice's note played on the keyboard (bipolar, 2 octaves in either direction).")
+  set_knob_defval($global_amount,1000)
+  set_knob_defval($Voices,6)
+  make_persistent(%detune_spread)
+  make_persistent(%velocity_spread)
+  make_persistent(%offset_spread)
+  make_persistent(%db_spread)
+  make_persistent(%pan_spread)
+  make_persistent(%keyboard_spread)
+  make_persistent($global_amount)
+  make_persistent($Voices)
+  make_persistent($display_choices)
+  make_persistent($transformation)
+  _read_persistent_var(%detune_spread)
+  _read_persistent_var(%velocity_spread)
+  _read_persistent_var(%offset_spread)
+  _read_persistent_var(%db_spread)
+  _read_persistent_var(%pan_spread)
+  _read_persistent_var(%keyboard_spread)
+  _read_persistent_var($global_amount)
+  _read_persistent_var($Voices)
+  _read_persistent_var($display_choices)
+  _read_persistent_var($transformation)
+  set_table_steps_shown(%detune_spread,$Voices)
+  set_table_steps_shown(%velocity_spread,$Voices)
+  set_table_steps_shown(%offset_spread,$Voices)
+  set_table_steps_shown(%db_spread,$Voices)
+  set_table_steps_shown(%pan_spread,$Voices)
+  set_table_steps_shown(%keyboard_spread,$Voices)
+  declare const $color_base := 44900
+  declare const $color_offset := 25
+  set_control_par(get_ui_id(%detune_spread),$CONTROL_PAR_ZERO_LINE_COLOR,$color_base)
+  set_control_par(get_ui_id(%detune_spread),$CONTROL_PAR_BAR_COLOR,$color_base)
+  set_control_par(get_ui_id(%pan_spread),$CONTROL_PAR_ZERO_LINE_COLOR,$color_base+($color_offset*1))
+  set_control_par(get_ui_id(%pan_spread),$CONTROL_PAR_BAR_COLOR,$color_base+($color_offset*1))
+  set_control_par(get_ui_id(%velocity_spread),$CONTROL_PAR_ZERO_LINE_COLOR,$color_base+($color_offset*2))
+  set_control_par(get_ui_id(%velocity_spread),$CONTROL_PAR_BAR_COLOR,$color_base+($color_offset*2))
+  set_control_par(get_ui_id(%offset_spread),$CONTROL_PAR_ZERO_LINE_COLOR,$color_base+($color_offset*3))
+  set_control_par(get_ui_id(%offset_spread),$CONTROL_PAR_BAR_COLOR,$color_base+($color_offset*3))
+  set_control_par(get_ui_id(%db_spread),$CONTROL_PAR_ZERO_LINE_COLOR,$color_base+($color_offset*4))
+  set_control_par(get_ui_id(%db_spread),$CONTROL_PAR_BAR_COLOR,$color_base+($color_offset*4))
+  set_control_par(get_ui_id(%keyboard_spread),$CONTROL_PAR_ZERO_LINE_COLOR,$color_base+($color_offset*5))
+  set_control_par(get_ui_id(%keyboard_spread),$CONTROL_PAR_BAR_COLOR,$color_base+($color_offset*5))
+  declare const $tablex := 15
+  declare const $tabley := 75
+  declare const $trans_left_offset := 400
+  declare const $firstrow := 23
+  declare const $secondrow := 51
+  move_control_px($stacktitle,$trans_left_offset+130,$firstrow)
+  move_control_px($transformation,$trans_left_offset,$secondrow)
+  move_control_px($transformation_amount,$trans_left_offset+75,$secondrow)
+  move_control_px($applyto,$trans_left_offset+125,$secondrow)
+  move_control_px($transform,$trans_left_offset+175,$secondrow)
+  move_control_px($display_choices,220,$secondrow)
+  move_control_px($global_amount,$tablex,$firstrow+6)
+  move_control_px($Voices,$tablex+100,$firstrow+6)
+
+  select ($display_choices)
+    case 0
+      move_control_px(%detune_spread,$tablex,$tabley)
+      set_control_par(get_ui_id(%velocity_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%offset_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%db_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%pan_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%keyboard_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+    case 1
+      move_control_px(%pan_spread,$tablex,$tabley)
+      set_control_par(get_ui_id(%detune_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%velocity_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%offset_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%db_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%keyboard_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+    case 2
+      move_control_px(%velocity_spread,$tablex,$tabley)
+      set_control_par(get_ui_id(%detune_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%pan_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%offset_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%db_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%keyboard_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+    case 3
+      move_control_px(%offset_spread,$tablex,$tabley)
+      set_control_par(get_ui_id(%detune_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%pan_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%velocity_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%db_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%keyboard_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+    case 4
+      move_control_px(%db_spread,$tablex,$tabley)
+      set_control_par(get_ui_id(%detune_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%pan_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%velocity_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%offset_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%keyboard_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+    case 5
+      move_control_px(%keyboard_spread,$tablex,$tabley)
+      set_control_par(get_ui_id(%detune_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%pan_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%velocity_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%offset_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%db_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+  end select
+  make_perfview
+end on
+
+on ui_control($transform)
+  if ($transform=1)
+    select ($transformation)
+      case 0
+        select ($display_choices)
+          case 0
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %detune_spread[$z] := 0
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %detune_spread[$z] := 0
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %detune_spread[$z] := 0
+                  $z := $z+2
+                end while
+            end select
+          case 1
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %pan_spread[$z] := 0
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %pan_spread[$z] := 0
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %pan_spread[$z] := 0
+                  $z := $z+2
+                end while
+            end select
+          case 2
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %velocity_spread[$z] := 0
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %velocity_spread[$z] := 0
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %velocity_spread[$z] := 0
+                  $z := $z+2
+                end while
+            end select
+          case 3
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %offset_spread[$z] := 0
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %offset_spread[$z] := 0
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %offset_spread[$z] := 0
+                  $z := $z+2
+                end while
+            end select
+          case 4
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %db_spread[$z] := 0
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %db_spread[$z] := 0
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %db_spread[$z] := 0
+                  $z := $z+2
+                end while
+            end select
+          case 5
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %keyboard_spread[$z] := 0
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %keyboard_spread[$z] := 0
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %keyboard_spread[$z] := 0
+                  $z := $z+2
+                end while
+            end select
+        end select
+      case 1
+        select ($display_choices)
+          case 0
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %detune_spread[$z] := %detune_spread[$z]*-1
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %detune_spread[$z] := %detune_spread[$z]*-1
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %detune_spread[$z] := %detune_spread[$z]*-1
+                  $z := $z+2
+                end while
+            end select
+          case 1
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %pan_spread[$z] := %pan_spread[$z]*-1
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %pan_spread[$z] := %pan_spread[$z]*-1
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %pan_spread[$z] := %pan_spread[$z]*-1
+                  $z := $z+2
+                end while
+            end select
+          case 2
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %velocity_spread[$z] := 127-%velocity_spread[$z]
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %velocity_spread[$z] := 127-%velocity_spread[$z]
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %velocity_spread[$z] := 127-%velocity_spread[$z]
+                  $z := $z+2
+                end while
+            end select
+          case 3
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %offset_spread[$z] := 100000-%offset_spread[$z]
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %offset_spread[$z] := 100000-%offset_spread[$z]
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %offset_spread[$z] := 100000-%offset_spread[$z]
+                  $z := $z+2
+                end while
+            end select
+          case 4
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %db_spread[$z] := %db_spread[$z]*-1
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %db_spread[$z] := %db_spread[$z]*-1
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %db_spread[$z] := %db_spread[$z]*-1
+                  $z := $z+2
+                end while
+            end select
+          case 5
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %keyboard_spread[$z] := %keyboard_spread[$z]*-1
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %keyboard_spread[$z] := %keyboard_spread[$z]*-1
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %keyboard_spread[$z] := %keyboard_spread[$z]*-1
+                  $z := $z+2
+                end while
+            end select
+        end select
+      case 2
+        select ($display_choices)
+          case 0
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %detune_spread[$z] := %detune_spread[$z]/2
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %detune_spread[$z] := %detune_spread[$z]/2
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %detune_spread[$z] := %detune_spread[$z]/2
+                  $z := $z+2
+                end while
+            end select
+          case 1
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %pan_spread[$z] := %pan_spread[$z]/2
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %pan_spread[$z] := %pan_spread[$z]/2
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %pan_spread[$z] := %pan_spread[$z]/2
+                  $z := $z+2
+                end while
+            end select
+          case 2
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %velocity_spread[$z] := %velocity_spread[$z]/2
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %velocity_spread[$z] := %velocity_spread[$z]/2
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %velocity_spread[$z] := %velocity_spread[$z]/2
+                  $z := $z+2
+                end while
+            end select
+          case 3
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %offset_spread[$z] := %offset_spread[$z]/2
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %offset_spread[$z] := %offset_spread[$z]/2
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %offset_spread[$z] := %offset_spread[$z]/2
+                  $z := $z+2
+                end while
+            end select
+          case 4
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %db_spread[$z] := %db_spread[$z]/2
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %db_spread[$z] := %db_spread[$z]/2
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %db_spread[$z] := %db_spread[$z]/2
+                  $z := $z+2
+                end while
+            end select
+          case 5
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %keyboard_spread[$z] := %keyboard_spread[$z]/2
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %keyboard_spread[$z] := %keyboard_spread[$z]/2
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %keyboard_spread[$z] := %keyboard_spread[$z]/2
+                  $z := $z+2
+                end while
+            end select
+        end select
+      case 3
+        select ($display_choices)
+          case 0
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  $change := %detune_spread[$z]*2
+                  if ($change>$detune_range)
+                    $change := $detune_range
+                  end if
+                  %detune_spread[$z] := $change
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  $change := %detune_spread[$z]*2
+                  if ($change>$detune_range)
+                    $change := $detune_range
+                  end if
+                  %detune_spread[$z] := $change
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  $change := %detune_spread[$z]*2
+                  if ($change>$detune_range)
+                    $change := $detune_range
+                  end if
+                  %detune_spread[$z] := $change
+                  $z := $z+2
+                end while
+            end select
+          case 1
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  $change := %pan_spread[$z]*2
+                  if ($change>$pan_range)
+                    $change := $pan_range
+                  end if
+                  %pan_spread[$z] := $change
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  $change := %pan_spread[$z]*2
+                  if ($change>$pan_range)
+                    $change := $pan_range
+                  end if
+                  %pan_spread[$z] := $change
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  $change := %pan_spread[$z]*2
+                  if ($change>$pan_range)
+                    $change := $pan_range
+                  end if
+                  %pan_spread[$z] := $change
+                  $z := $z+2
+                end while
+            end select
+          case 2
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  $change := %velocity_spread[$z]*2
+                  if ($change>$velocity_range)
+                    $change := $velocity_range
+                  end if
+                  %velocity_spread[$z] := $change
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  $change := %velocity_spread[$z]*2
+                  if ($change>$velocity_range)
+                    $change := $velocity_range
+                  end if
+                  %velocity_spread[$z] := $change
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  $change := %velocity_spread[$z]*2
+                  if ($change>$velocity_range)
+                    $change := $velocity_range
+                  end if
+                  %velocity_spread[$z] := $change
+                  $z := $z+2
+                end while
+            end select
+          case 3
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  $change := %offset_spread[$z]*2
+                  if ($change>$offset_range)
+                    $change := $offset_range
+                  end if
+                  %offset_spread[$z] := $change
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  $change := %offset_spread[$z]*2
+                  if ($change>$offset_range)
+                    $change := $offset_range
+                  end if
+                  %offset_spread[$z] := $change
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  $change := %offset_spread[$z]*2
+                  if ($change>$offset_range)
+                    $change := $offset_range
+                  end if
+                  %offset_spread[$z] := $change
+                  $z := $z+2
+                end while
+            end select
+          case 4
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  $change := %db_spread[$z]*2
+                  if ($change>$db_range)
+                    $change := $db_range
+                  end if
+                  %db_spread[$z] := $change
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  $change := %db_spread[$z]*2
+                  if ($change>$db_range)
+                    $change := $db_range
+                  end if
+                  %db_spread[$z] := $change
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  $change := %db_spread[$z]*2
+                  if ($change>$db_range)
+                    $change := $db_range
+                  end if
+                  %db_spread[$z] := $change
+                  $z := $z+2
+                end while
+            end select
+          case 5
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  $change := %keyboard_spread[$z]*2
+                  if ($change>$keyboard_range)
+                    $change := $keyboard_range
+                  end if
+                  %keyboard_spread[$z] := $change
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  $change := %keyboard_spread[$z]*2
+                  if ($change>$keyboard_range)
+                    $change := $keyboard_range
+                  end if
+                  %keyboard_spread[$z] := $change
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  $change := %keyboard_spread[$z]*2
+                  if ($change>$keyboard_range)
+                    $change := $keyboard_range
+                  end if
+                  %keyboard_spread[$z] := $change
+                  $z := $z+2
+                end while
+            end select
+        end select
+      case 4
+        if ($transformation_amount # 0)
+          $change := 1000/$transformation_amount
+          select ($display_choices)
+            case 0
+              select ($applyto)
+                case 0
+                  $z := 0
+                  while ($z<$Voices)
+                    %detune_spread[$z] := %detune_spread[$z]/$change
+                    inc($z)
+                  end while
+                case 1
+                  $z := 0
+                  while ($z<$voices)
+                    %detune_spread[$z] := %detune_spread[$z]/$change
+                    $z := $z+2
+                  end while
+                case 2
+                  $z := 1
+                  while ($z<$voices)
+                    %detune_spread[$z] := %detune_spread[$z]/$change
+                    $z := $z+2
+                  end while
+              end select
+            case 1
+              select ($applyto)
+                case 0
+                  $z := 0
+                  while ($z<$Voices)
+                    %pan_spread[$z] := %pan_spread[$z]/$change
+                    inc($z)
+                  end while
+                case 1
+                  $z := 0
+                  while ($z<$voices)
+                    %pan_spread[$z] := %pan_spread[$z]/$change
+                    $z := $z+2
+                  end while
+                case 2
+                  $z := 1
+                  while ($z<$voices)
+                    %pan_spread[$z] := %pan_spread[$z]/$change
+                    $z := $z+2
+                  end while
+              end select
+            case 2
+              select ($applyto)
+                case 0
+                  $z := 0
+                  while ($z<$Voices)
+                    %velocity_spread[$z] := %velocity_spread[$z]/$change
+                    inc($z)
+                  end while
+                case 1
+                  $z := 0
+                  while ($z<$voices)
+                    %velocity_spread[$z] := %velocity_spread[$z]/$change
+                    $z := $z+2
+                  end while
+                case 2
+                  $z := 1
+                  while ($z<$voices)
+                    %velocity_spread[$z] := %velocity_spread[$z]/$change
+                    $z := $z+2
+                  end while
+              end select
+            case 3
+              select ($applyto)
+                case 0
+                  $z := 0
+                  while ($z<$Voices)
+                    %offset_spread[$z] := %offset_spread[$z]/$change
+                    inc($z)
+                  end while
+                case 1
+                  $z := 0
+                  while ($z<$voices)
+                    %offset_spread[$z] := %offset_spread[$z]/$change
+                    $z := $z+2
+                  end while
+                case 2
+                  $z := 1
+                  while ($z<$voices)
+                    %offset_spread[$z] := %offset_spread[$z]/$change
+                    $z := $z+2
+                  end while
+              end select
+            case 4
+              select ($applyto)
+                case 0
+                  $z := 0
+                  while ($z<$Voices)
+                    %db_spread[$z] := %db_spread[$z]/$change
+                    inc($z)
+                  end while
+                case 1
+                  $z := 0
+                  while ($z<$voices)
+                    %db_spread[$z] := %db_spread[$z]/$change
+                    $z := $z+2
+                  end while
+                case 2
+                  $z := 1
+                  while ($z<$voices)
+                    %db_spread[$z] := %db_spread[$z]/$change
+                    $z := $z+2
+                  end while
+              end select
+            case 5
+              select ($applyto)
+                case 0
+                  $z := 0
+                  while ($z<$Voices)
+                    %keyboard_spread[$z] := %keyboard_spread[$z]/$change
+                    inc($z)
+                  end while
+                case 1
+                  $z := 0
+                  while ($z<$voices)
+                    %keyboard_spread[$z] := %keyboard_spread[$z]/$change
+                    $z := $z+2
+                  end while
+                case 2
+                  $z := 1
+                  while ($z<$voices)
+                    %keyboard_spread[$z] := %keyboard_spread[$z]/$change
+                    $z := $z+2
+                  end while
+              end select
+          end select
+        end if
+        if ($transformation_amount=0)
+          select ($display_choices)
+            case 0
+              select ($applyto)
+                case 0
+                  $z := 0
+                  while ($z<$Voices)
+                    %detune_spread[$z] := 0
+                    inc($z)
+                  end while
+                case 1
+                  $z := 0
+                  while ($z<$voices)
+                    %detune_spread[$z] := 0
+                    $z := $z+2
+                  end while
+                case 2
+                  $z := 1
+                  while ($z<$voices)
+                    %detune_spread[$z] := 0
+                    $z := $z+2
+                  end while
+              end select
+            case 1
+              select ($applyto)
+                case 0
+                  $z := 0
+                  while ($z<$Voices)
+                    %pan_spread[$z] := 0
+                    inc($z)
+                  end while
+                case 1
+                  $z := 0
+                  while ($z<$voices)
+                    %pan_spread[$z] := 0
+                    $z := $z+2
+                  end while
+                case 2
+                  $z := 1
+                  while ($z<$voices)
+                    %pan_spread[$z] := 0
+                    $z := $z+2
+                  end while
+              end select
+            case 2
+              select ($applyto)
+                case 0
+                  $z := 0
+                  while ($z<$Voices)
+                    %velocity_spread[$z] := 0
+                    inc($z)
+                  end while
+                case 1
+                  $z := 0
+                  while ($z<$voices)
+                    %velocity_spread[$z] := 0
+                    $z := $z+2
+                  end while
+                case 2
+                  $z := 1
+                  while ($z<$voices)
+                    %velocity_spread[$z] := 0
+                    $z := $z+2
+                  end while
+              end select
+            case 3
+              select ($applyto)
+                case 0
+                  $z := 0
+                  while ($z<$Voices)
+                    %offset_spread[$z] := 0
+                    inc($z)
+                  end while
+                case 1
+                  $z := 0
+                  while ($z<$voices)
+                    %offset_spread[$z] := 0
+                    $z := $z+2
+                  end while
+                case 2
+                  $z := 1
+                  while ($z<$voices)
+                    %offset_spread[$z] := 0
+                    $z := $z+2
+                  end while
+              end select
+            case 4
+              select ($applyto)
+                case 0
+                  $z := 0
+                  while ($z<$Voices)
+                    %db_spread[$z] := 0
+                    inc($z)
+                  end while
+                case 1
+                  $z := 0
+                  while ($z<$voices)
+                    %db_spread[$z] := 0
+                    $z := $z+2
+                  end while
+                case 2
+                  $z := 1
+                  while ($z<$voices)
+                    %db_spread[$z] := 0
+                    $z := $z+2
+                  end while
+              end select
+            case 5
+              select ($applyto)
+                case 0
+                  $z := 0
+                  while ($z<$Voices)
+                    %keyboard_spread[$z] := 0
+                    inc($z)
+                  end while
+                case 1
+                  $z := 0
+                  while ($z<$voices)
+                    %keyboard_spread[$z] := 0
+                    $z := $z+2
+                  end while
+                case 2
+                  $z := 1
+                  while ($z<$voices)
+                    %keyboard_spread[$z] := 0
+                    $z := $z+2
+                  end while
+              end select
+          end select
+        end if
+      case 5
+        select ($display_choices)
+          case 0
+            $range := $detune_range*2/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %detune_spread[$z] := $z*($range/($Voices-1))-($range/2)
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %detune_spread[$z] := $z*($range/($Voices-1))-($range/2)
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %detune_spread[$z] := $z*($range/($Voices-1))-($range/2)
+                  $z := $z+2
+                end while
+            end select
+          case 1
+            $range := $pan_range*2/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %pan_spread[$z] := $z*($range/($Voices-1))-($range/2)
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %pan_spread[$z] := $z*($range/($Voices-1))-($range/2)
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %pan_spread[$z] := $z*($range/($Voices-1))-($range/2)
+                  $z := $z+2
+                end while
+            end select
+          case 2
+            $range := $velocity_range*2/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %velocity_spread[$z] := $z*($range/($Voices-1))-($range/2)
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %velocity_spread[$z] := $z*($range/($Voices-1))-($range/2)
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %velocity_spread[$z] := $z*($range/($Voices-1))-($range/2)
+                  $z := $z+2
+                end while
+            end select
+          case 3
+            $range := $offset_range/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %offset_spread[$z] := $z*($range/($Voices-1))
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %offset_spread[$z] := $z*($range/($Voices-1))
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %offset_spread[$z] := $z*($range/($Voices-1))
+                  $z := $z+2
+                end while
+            end select
+          case 4
+            $range := $db_range*2/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %db_spread[$z] := $z*($range/($Voices-1))-($range/2)
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %db_spread[$z] := $z*($range/($Voices-1))-($range/2)
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %db_spread[$z] := $z*($range/($Voices-1))-($range/2)
+                  $z := $z+2
+                end while
+            end select
+          case 5
+            $range := $keyboard_range*2/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %keyboard_spread[$z] := $z*($range/($Voices-1))-($range/2)
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %keyboard_spread[$z] := $z*($range/($Voices-1))-($range/2)
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %keyboard_spread[$z] := $z*($range/($Voices-1))-($range/2)
+                  $z := $z+2
+                end while
+            end select
+        end select
+      case 6
+        select ($display_choices)
+          case 0
+            $range := $detune_range*2/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %detune_spread[$z] := $z*$z*($range/(($Voices-1)*($Voices-1)))-($range/2)
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %detune_spread[$z] := $z*$z*($range/(($Voices-1)*($Voices-1)))-($range/2)
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %detune_spread[$z] := $z*$z*($range/(($Voices-1)*($Voices-1)))-($range/2)
+                  $z := $z+2
+                end while
+            end select
+          case 1
+            $range := $pan_range*2/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %pan_spread[$z] := $z*$z*($range/(($Voices-1)*($Voices-1)))-($range/2)
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %pan_spread[$z] := $z*$z*($range/(($Voices-1)*($Voices-1)))-($range/2)
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %pan_spread[$z] := $z*$z*($range/(($Voices-1)*($Voices-1)))-($range/2)
+                  $z := $z+2
+                end while
+            end select
+          case 2
+            $range := $velocity_range*2/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %velocity_spread[$z] := $z*$z*($range/(($Voices-1)*($Voices-1)))-($range/2)
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %velocity_spread[$z] := $z*$z*($range/(($Voices-1)*($Voices-1)))-($range/2)
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %velocity_spread[$z] := $z*$z*($range/(($Voices-1)*($Voices-1)))-($range/2)
+                  $z := $z+2
+                end while
+            end select
+          case 3
+            $range := $offset_range/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %offset_spread[$z] := $z*$z*($range/(($Voices-1)*($Voices-1)))
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %offset_spread[$z] := $z*$z*($range/(($Voices-1)*($Voices-1)))
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %offset_spread[$z] := $z*$z*($range/(($Voices-1)*($Voices-1)))
+                  $z := $z+2
+                end while
+            end select
+          case 4
+            $range := $db_range*2/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %db_spread[$z] := $z*$z*($range/(($Voices-1)*($Voices-1)))-($range/2)
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %db_spread[$z] := $z*$z*($range/(($Voices-1)*($Voices-1)))-($range/2)
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %db_spread[$z] := $z*$z*($range/(($Voices-1)*($Voices-1)))-($range/2)
+                end while
+            end select
+          case 5
+            $range := $keyboard_range*2/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %keyboard_spread[$z] := $z*$z*($range/(($Voices-1)*($Voices-1)))-($range/2)
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %keyboard_spread[$z] := $z*$z*($range/(($Voices-1)*($Voices-1)))-($range/2)
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %keyboard_spread[$z] := $z*$z*($range/(($Voices-1)*($Voices-1)))-($range/2)
+                  $z := $z+2
+                end while
+            end select
+        end select
+      case 7
+        select ($display_choices)
+          case 0
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %detune_spread[$z] := random(-$detune_range,$detune_range)
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %detune_spread[$z] := random(-$detune_range,$detune_range)
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %detune_spread[$z] := random(-$detune_range,$detune_range)
+                  $z := $z+2
+                end while
+            end select
+          case 1
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %pan_spread[$z] := random(-$pan_range,$pan_range)
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %pan_spread[$z] := random(-$pan_range,$pan_range)
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %pan_spread[$z] := random(-$pan_range,$pan_range)
+                  $z := $z+2
+                end while
+            end select
+          case 2
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %velocity_spread[$z] := random(-$velocity_range,$velocity_range)
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %velocity_spread[$z] := random(-$velocity_range,$velocity_range)
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %velocity_spread[$z] := random(-$velocity_range,$velocity_range)
+                  $z := $z+2
+                end while
+            end select
+          case 3
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %offset_spread[$z] := random(0,$offset_range)
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %offset_spread[$z] := random(0,$offset_range)
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %offset_spread[$z] := random(0,$offset_range)
+                  $z := $z+2
+                end while
+            end select
+          case 4
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %db_spread[$z] := random(-$db_range,$db_range)
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %db_spread[$z] := random(-$db_range,$db_range)
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %db_spread[$z] := random(-$db_range,$db_range)
+                  $z := $z+2
+                end while
+            end select
+          case 5
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  %keyboard_spread[$z] := random(-$keyboard_range,$keyboard_range)
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  %keyboard_spread[$z] := random(-$keyboard_range,$keyboard_range)
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  %keyboard_spread[$z] := random(-$keyboard_range,$keyboard_range)
+                  $z := $z+2
+                end while
+            end select
+        end select
+      case 8
+        select ($display_choices)
+          case 0
+            $range := $detune_range/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  $change := %detune_spread[$z]+random(0,$range)
+                  if ($change>$detune_range)
+                    $change := $detune_range
+                  end if
+                  %detune_spread[$z] := $change
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  $change := %detune_spread[$z]+random(0,$range)
+                  if ($change>$detune_range)
+                    $change := $detune_range
+                  end if
+                  %detune_spread[$z] := $change
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  $change := %detune_spread[$z]+random(0,$range)
+                  if ($change>$detune_range)
+                    $change := $detune_range
+                  end if
+                  %detune_spread[$z] := $change
+                  $z := $z+2
+                end while
+            end select
+          case 1
+            $range := $pan_range/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  $change := %pan_spread[$z]+random(0,$range)
+                  if ($change>$pan_range)
+                    $change := $pan_range
+                  end if
+                  %pan_spread[$z] := $change
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  $change := %pan_spread[$z]+random(0,$range)
+                  if ($change>$pan_range)
+                    $change := $pan_range
+                  end if
+                  %pan_spread[$z] := $change
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  $change := %pan_spread[$z]+random(0,$range)
+                  if ($change>$pan_range)
+                    $change := $pan_range
+                  end if
+                  %pan_spread[$z] := $change
+                  $z := $z+2
+                end while
+            end select
+          case 2
+            $range := $velocity_range/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  $change := %velocity_spread[$z]+random(0,$range)
+                  if ($change>$velocity_range)
+                    $change := $velocity_range
+                  end if
+                  %velocity_spread[$z] := $change
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  $change := %velocity_spread[$z]+random(0,$range)
+                  if ($change>$velocity_range)
+                    $change := $velocity_range
+                  end if
+                  %velocity_spread[$z] := $change
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  $change := %velocity_spread[$z]+random(0,$range)
+                  if ($change>$velocity_range)
+                    $change := $velocity_range
+                  end if
+                  %velocity_spread[$z] := $change
+                  $z := $z+2
+                end while
+            end select
+          case 3
+            $range := $offset_range/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  $change := %offset_spread[$z]+random(0,$range)
+                  if ($change>$offset_range)
+                    $change := $offset_range
+                  end if
+                  %offset_spread[$z] := $change
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  $change := %offset_spread[$z]+random(0,$range)
+                  if ($change>$offset_range)
+                    $change := $offset_range
+                  end if
+                  %offset_spread[$z] := $change
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  $change := %offset_spread[$z]+random(0,$range)
+                  if ($change>$offset_range)
+                    $change := $offset_range
+                  end if
+                  %offset_spread[$z] := $change
+                  $z := $z+2
+                end while
+            end select
+          case 4
+            $range := $db_range/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  $change := %db_spread[$z]+random(0,$range)
+                  if ($change>$db_range)
+                    $change := $db_range
+                  end if
+                  %db_spread[$z] := $change
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  $change := %db_spread[$z]+random(0,$range)
+                  if ($change>$db_range)
+                    $change := $db_range
+                  end if
+                  %db_spread[$z] := $change
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  $change := %db_spread[$z]+random(0,$range)
+                  if ($change>$db_range)
+                    $change := $db_range
+                  end if
+                  %db_spread[$z] := $change
+                  $z := $z+2
+                end while
+            end select
+          case 5
+            $range := $keyboard_range/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  $change := %keyboard_spread[$z]+random(0,$range)
+                  if ($change>$keyboard_range)
+                    $change := $keyboard_range
+                  end if
+                  %keyboard_spread[$z] := $change
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  $change := %keyboard_spread[$z]+random(0,$range)
+                  if ($change>$keyboard_range)
+                    $change := $keyboard_range
+                  end if
+                  %keyboard_spread[$z] := $change
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  $change := %keyboard_spread[$z]+random(0,$range)
+                  if ($change>$keyboard_range)
+                    $change := $keyboard_range
+                  end if
+                  %keyboard_spread[$z] := $change
+                  $z := $z+2
+                end while
+            end select
+        end select
+      case 9
+        select ($display_choices)
+          case 0
+            $range := $detune_range/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  $change := %detune_spread[$z]-random(0,$range)
+                  if ($change<-$detune_range)
+                    $change := -$detune_range
+                  end if
+                  %detune_spread[$z] := $change
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  $change := %detune_spread[$z]-random(0,$range)
+                  if ($change<-$detune_range)
+                    $change := -$detune_range
+                  end if
+                  %detune_spread[$z] := $change
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  $change := %detune_spread[$z]-random(0,$range)
+                  if ($change<-$detune_range)
+                    $change := -$detune_range
+                  end if
+                  %detune_spread[$z] := $change
+                  $z := $z+2
+                end while
+            end select
+          case 1
+            $range := $pan_range/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  $change := %pan_spread[$z]-random(0,$range)
+                  if ($change<-$pan_range)
+                    $change := -$pan_range
+                  end if
+                  %pan_spread[$z] := $change
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  $change := %pan_spread[$z]-random(0,$range)
+                  if ($change<-$pan_range)
+                    $change := -$pan_range
+                  end if
+                  %pan_spread[$z] := $change
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  $change := %pan_spread[$z]-random(0,$range)
+                  if ($change<-$pan_range)
+                    $change := -$pan_range
+                  end if
+                  %pan_spread[$z] := $change
+                  $z := $z+2
+                end while
+            end select
+          case 2
+            $range := $velocity_range/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  $change := %velocity_spread[$z]-random(0,$range)
+                  if ($change<-$velocity_range)
+                    $change := -$velocity_range
+                  end if
+                  %velocity_spread[$z] := $change
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  $change := %velocity_spread[$z]-random(0,$range)
+                  if ($change<-$velocity_range)
+                    $change := -$velocity_range
+                  end if
+                  %velocity_spread[$z] := $change
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  $change := %velocity_spread[$z]-random(0,$range)
+                  if ($change<-$velocity_range)
+                    $change := -$velocity_range
+                  end if
+                  %velocity_spread[$z] := $change
+                  $z := $z+2
+                end while
+            end select
+          case 3
+            $range := $offset_range/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  $change := %offset_spread[$z]-random(0,$range)
+                  if ($change<0)
+                    $change := 0
+                  end if
+                  %offset_spread[$z] := $change
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  $change := %offset_spread[$z]-random(0,$range)
+                  if ($change<0)
+                    $change := 0
+                  end if
+                  %offset_spread[$z] := $change
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  $change := %offset_spread[$z]-random(0,$range)
+                  if ($change<0)
+                    $change := 0
+                  end if
+                  %offset_spread[$z] := $change
+                  $z := $z+2
+                end while
+            end select
+          case 4
+            $range := $db_range/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  $change := %db_spread[$z]-random(0,$range)
+                  if ($change<-$db_range)
+                    $change := -$db_range
+                  end if
+                  %db_spread[$z] := $change
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  $change := %db_spread[$z]-random(0,$range)
+                  if ($change<-$db_range)
+                    $change := -$db_range
+                  end if
+                  %db_spread[$z] := $change
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  $change := %db_spread[$z]-random(0,$range)
+                  if ($change<-$db_range)
+                    $change := -$db_range
+                  end if
+                  %db_spread[$z] := $change
+                  $z := $z+2
+                end while
+            end select
+          case 5
+            $range := $keyboard_range/(1000/$transformation_amount)
+            select ($applyto)
+              case 0
+                $z := 0
+                while ($z<$Voices)
+                  $change := %keyboard_spread[$z]-random(0,$range)
+                  if ($change<-$keyboard_range)
+                    $change := -$keyboard_range
+                  end if
+                  %keyboard_spread[$z] := $change
+                  inc($z)
+                end while
+              case 1
+                $z := 0
+                while ($z<$voices)
+                  $change := %keyboard_spread[$z]-random(0,$range)
+                  if ($change<-$keyboard_range)
+                    $change := -$keyboard_range
+                  end if
+                  %keyboard_spread[$z] := $change
+                  $z := $z+2
+                end while
+              case 2
+                $z := 1
+                while ($z<$voices)
+                  $change := %keyboard_spread[$z]-random(0,$range)
+                  if ($change<-$keyboard_range)
+                    $change := -$keyboard_range
+                  end if
+                  %keyboard_spread[$z] := $change
+                  $z := $z+2
+                end while
+            end select
+        end select
+    end select
+    $transform := 0
+  end if
+end on
+
+on ui_control($display_choices)
+  select ($display_choices)
+    case 0
+      move_control_px(%detune_spread,$tablex,$tabley)
+      set_control_par(get_ui_id(%velocity_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%offset_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%db_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%pan_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%keyboard_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+    case 1
+      move_control_px(%pan_spread,$tablex,$tabley)
+      set_control_par(get_ui_id(%detune_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%velocity_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%offset_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%db_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%keyboard_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+    case 2
+      move_control_px(%velocity_spread,$tablex,$tabley)
+      set_control_par(get_ui_id(%detune_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%pan_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%offset_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%db_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%keyboard_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+    case 3
+      move_control_px(%offset_spread,$tablex,$tabley)
+      set_control_par(get_ui_id(%detune_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%pan_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%velocity_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%db_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%keyboard_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+    case 4
+      move_control_px(%db_spread,$tablex,$tabley)
+      set_control_par(get_ui_id(%detune_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%pan_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%velocity_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%offset_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%keyboard_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+    case 5
+      move_control_px(%keyboard_spread,$tablex,$tabley)
+      set_control_par(get_ui_id(%detune_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%pan_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%velocity_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%offset_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+      set_control_par(get_ui_id(%db_spread),$CONTROL_PAR_HIDE,$HIDE_WHOLE_CONTROL)
+  end select
+end on
+
+on ui_control($Voices)
+  set_table_steps_shown(%detune_spread,$Voices)
+  set_table_steps_shown(%velocity_spread,$Voices)
+  set_table_steps_shown(%offset_spread,$Voices)
+  set_table_steps_shown(%db_spread,$Voices)
+  set_table_steps_shown(%pan_spread,$Voices)
+  set_table_steps_shown(%keyboard_spread,$Voices)
+end on
+
+on note
+  $incoming_velocity := $EVENT_VELOCITY
+  $incoming_note := $EVENT_NOTE
+  ignore_event($EVENT_ID)
+  $i := 0
+  while ($i<$Voices)
+    $new_note := $incoming_note+(%keyboard_spread[$i]*$global_amount/1000)
+    if ($new_note>127)
+      $new_note := 127
+    end if
+    if ($new_note<0)
+      $new_note := 0
+    end if
+    $new_velocity := $incoming_velocity+(%velocity_spread[$i]*$global_amount/1000)
+    if ($new_velocity<1)
+      $new_velocity := 1
+    end if
+    if ($new_velocity>127)
+      $new_velocity := 127
+    end if
+    $new_offset := %offset_spread[$i]*$global_amount/1000
+    %allvoices[$i] := play_note($new_note,$new_velocity,$new_offset,-1)
+    change_pan(%allvoices[$i],%pan_spread[$i]*$global_amount/1000,0)
+    change_tune(%allvoices[$i],%detune_spread[$i]*$global_amount/1000,0)
+    change_vol(%allvoices[$i],%db_spread[$i]*$global_amount/1000,1)
+    inc($i)
+  end while
+end on
+

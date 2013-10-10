@@ -1,0 +1,408 @@
+{*************************
+8 MIDI Controllers
+Modification of NI Script
+**************************}
+on init
+    set_control_par_str($INST_WALLPAPER_ID, $CONTROL_PAR_PICTURE,"starnightdarktop3.png")
+    set_script_title("8 MIDI Controllers")
+    set_ui_height(5)
+    make_perfview
+    declare ui_text_edit @knob_names1
+    declare ui_text_edit @knob_names2
+    declare ui_text_edit @knob_names3
+    declare ui_text_edit @knob_names4
+    declare ui_text_edit @knob_names5
+    declare ui_text_edit @knob_names6
+    declare ui_text_edit @knob_names7
+    declare ui_text_edit @knob_names8
+    declare !knob_comment[8]
+    declare %knob_default[8] {between 0 and 10,000}
+    !knob_comment[0]    := "Comment for Knob 1"
+    %knob_default[0]    := 0
+    !knob_comment[1]    := "Comment for Knob 2"
+    %knob_default[1]    := 0
+    !knob_comment[2]    := "Comment for Knob 3"
+    %knob_default[2]    := 0
+    !knob_comment[3]    := "Comment for Knob 4"
+    %knob_default[3]    := 0
+    !knob_comment[4]    := "Comment for Knob 5"
+    %knob_default[4]    := 0
+    !knob_comment[5]    := "Comment for Knob 6"
+    %knob_default[5]    := 0
+    !knob_comment[6]    := "Comment for Knob 7"
+    %knob_default[6]    := 0
+    !knob_comment[7]    := "Comment for Knob 8"
+    %knob_default[7]    := 0
+    
+    declare ui_knob $cc_1_knob (0,127,1)
+	set_knob_unit ($cc_1_knob, $KNOB_UNIT_NONE)
+    declare ui_knob $cc_2_knob (0,127,1)
+    set_knob_unit ($cc_2_knob, $KNOB_UNIT_NONE)
+	declare ui_knob $cc_3_knob (0,127,1)
+    set_knob_unit ($cc_3_knob, $KNOB_UNIT_NONE)
+	declare ui_knob $cc_4_knob (0,127,1)
+    set_knob_unit ($cc_4_knob, $KNOB_UNIT_NONE)
+	declare ui_knob $cc_5_knob (0,127,1)
+    set_knob_unit ($cc_5_knob, $KNOB_UNIT_NONE)
+	declare ui_knob $cc_6_knob (0,127,1)
+    set_knob_unit ($cc_6_knob, $KNOB_UNIT_NONE)
+    declare ui_knob $cc_7_knob (0,127,1)
+    set_knob_unit ($cc_7_knob, $KNOB_UNIT_NONE)
+    declare ui_knob $cc_8_knob (0,127,1)
+    set_knob_unit ($cc_8_knob, $KNOB_UNIT_NONE)    
+    
+    {default values for knobs (when cmd + clicked) }
+    set_knob_defval($cc_1_knob, %knob_default[0])
+    set_knob_defval($cc_2_knob, %knob_default[1])
+    set_knob_defval($cc_3_knob, %knob_default[2])
+    set_knob_defval($cc_4_knob, %knob_default[3])
+    set_knob_defval($cc_5_knob, %knob_default[4])
+    set_knob_defval($cc_6_knob, %knob_default[5])
+    set_knob_defval($cc_7_knob, %knob_default[6])
+    set_knob_defval($cc_8_knob, %knob_default[7])
+	
+	declare ui_switch $send_button
+	set_text($send_button,"Send with Note")
+	declare ui_switch $touch_button
+	set_text ($touch_button,"Touch")
+	declare ui_switch $randomize_button
+	set_text ($randomize_button,"Randomize")
+	
+	declare ui_value_edit $cc_1_vedit (-1,127,1)
+	declare ui_value_edit $cc_2_vedit (-1,127,1)
+	declare ui_value_edit $cc_3_vedit (-1,127,1)
+	declare ui_value_edit $cc_4_vedit (-1,127,1)
+	declare ui_value_edit $cc_5_vedit (-1,127,1)
+	declare ui_value_edit $cc_6_vedit (-1,127,1)
+    declare ui_value_edit $cc_7_vedit (-1,127,1)
+    declare ui_value_edit $cc_8_vedit (-1,127,1)
+    
+	set_text($cc_1_vedit,"MIDI CC")
+	set_text($cc_2_vedit,"MIDI CC")
+	set_text($cc_3_vedit,"MIDI CC")
+	set_text($cc_4_vedit,"MIDI CC")
+	set_text($cc_5_vedit,"MIDI CC")
+	set_text($cc_6_vedit,"MIDI CC")
+	set_text($cc_7_vedit,"MIDI CC")
+    set_text($cc_8_vedit,"MIDI CC")
+	
+	$cc_1_vedit := 20
+	$cc_2_vedit := 21
+	$cc_3_vedit := 22
+	$cc_4_vedit := 23
+	$cc_5_vedit := 24
+	$cc_6_vedit := 25
+    $cc_7_vedit := 26
+    $cc_8_vedit := 27
+    
+    {*** New knob spacing (in pixels) ***
+    
+     x = (grid*87)+5 (I guess each grid is 87px wide)
+     y = (grid*18)+3 (I guess each grid is 18px tall)
+     
+     since we only are using 4 on each row, we want them
+     approximately 158.25px wide. Same height.
+     
+     the left starts at 5px, and top at 1px i guess.
+    }
+    
+	declare const $GRID_SPACING := 158
+    declare const $FROM_LEFT := 35
+    
+    declare $x1 := $FROM_LEFT
+	declare $x2 := $FROM_LEFT + ($GRID_SPACING * 1)
+	declare $x3 := $FROM_LEFT + ($GRID_SPACING * 2)
+    declare $x4 := $FROM_LEFT + ($GRID_SPACING * 3)
+    
+    move_control_px (@knob_names1, $x1, 15)
+    move_control_px (@knob_names2, $x2, 15)
+    move_control_px (@knob_names3, $x3, 15)
+    move_control_px (@knob_names4, $x4, 15)
+    move_control_px (@knob_names5, $x1, 95)
+    move_control_px (@knob_names6, $x2, 95)
+    move_control_px (@knob_names7, $x3, 95)
+    move_control_px (@knob_names8, $x4, 95)
+    
+	move_control_px ($cc_1_vedit,$x1,33)
+	move_control_px ($cc_2_vedit,$x2,33)
+	move_control_px ($cc_3_vedit,$x3,33)
+	move_control_px ($cc_4_vedit,$x4,33)
+	move_control_px ($cc_5_vedit,$x1,112)
+	move_control_px ($cc_6_vedit,$x2,112)
+    move_control_px ($cc_7_vedit,$x3,112)
+    move_control_px ($cc_8_vedit,$x4,112)
+	move_control_px ($cc_1_knob,$x1,54)
+	move_control_px ($cc_2_knob,$x2,54)
+	move_control_px ($cc_3_knob,$x3,54)
+	move_control_px ($cc_4_knob,$x4,54)
+	move_control_px ($cc_5_knob,$x1,133)
+	move_control_px ($cc_6_knob,$x2,133)
+    move_control_px ($cc_7_knob,$x3,133)
+    move_control_px ($cc_8_knob,$x4,133)
+	move_control_px ($touch_button, ($x4 - 200),181)
+	move_control_px ($send_button, ($x4 - 100),181)
+	move_control_px ($randomize_button, $x4,181)
+    
+    make_persistent (@knob_names1)
+    _read_persistent_var (@knob_names1)
+    make_persistent (@knob_names2)
+    _read_persistent_var (@knob_names2)
+    make_persistent (@knob_names3)
+    _read_persistent_var (@knob_names3)
+    make_persistent (@knob_names4)
+    _read_persistent_var (@knob_names4)
+    make_persistent (@knob_names5)
+    _read_persistent_var (@knob_names5)
+    make_persistent (@knob_names6)
+    _read_persistent_var (@knob_names6)
+    make_persistent (@knob_names7)
+    _read_persistent_var (@knob_names7)
+    make_persistent (@knob_names8)
+    _read_persistent_var (@knob_names8)
+            
+    
+
+	make_persistent ($cc_1_knob)
+	make_persistent ($cc_2_knob)
+	make_persistent ($cc_3_knob)
+	make_persistent ($cc_4_knob)
+	make_persistent ($cc_5_knob)
+	make_persistent ($cc_6_knob)
+    make_persistent ($cc_7_knob)
+    make_persistent ($cc_8_knob)
+	make_persistent ($cc_1_vedit)
+	make_persistent ($cc_2_vedit)
+	make_persistent ($cc_3_vedit)
+	make_persistent ($cc_4_vedit)
+	make_persistent ($cc_5_vedit)
+	make_persistent ($cc_6_vedit)
+    make_persistent ($cc_7_vedit)
+    make_persistent ($cc_8_vedit)
+	make_persistent ($send_button)
+    make_persistent (%knob_default)
+    
+    set_text($cc_1_knob,@knob_names1)
+	set_text($cc_2_knob,@knob_names2)
+	set_text($cc_3_knob,@knob_names3)
+	set_text($cc_4_knob,@knob_names4)
+	set_text($cc_5_knob,@knob_names5)
+	set_text($cc_6_knob,@knob_names6)
+    set_text($cc_7_knob,@knob_names7)
+    set_text($cc_8_knob,@knob_names8)
+    {if knob = -1, set text to "off", otherwise set text to midi cc#}
+
+	set_control_help($cc_1_knob, !knob_comment[0])
+	set_control_help($cc_2_knob, !knob_comment[1])
+	set_control_help($cc_3_knob, !knob_comment[2])
+	set_control_help($cc_4_knob, !knob_comment[3])
+	set_control_help($cc_5_knob, !knob_comment[4])
+	set_control_help($cc_6_knob, !knob_comment[5])
+	set_control_help($cc_7_knob, !knob_comment[6])
+    set_control_help($cc_8_knob, !knob_comment[7])    
+	
+    set_control_help($touch_button,"Touch: Sends a snapshot of all active controllers.")
+	set_control_help($send_button,"Send with Note: If enabled, each note will trigger all active controllers, i.e. each note is accompanied by MIDI CC values.")
+	set_control_help($randomize_button,"Randomize: Click to randomize of active controllers. If <Send with Note> is enabled, each note will randomize the controller values.")
+
+end on
+on ui_control ($cc_1_knob)
+	if ($cc_1_vedit # -1)
+		set_controller ($cc_1_vedit, $cc_1_knob)
+	end if
+end on
+on ui_control ($cc_2_knob)
+	if ($cc_2_vedit # -1)
+		set_controller ($cc_2_vedit, $cc_2_knob)
+	end if
+end on
+on ui_control ($cc_3_knob)
+	if ($cc_3_vedit # -1)
+		set_controller ($cc_3_vedit, $cc_3_knob)
+	end if
+end on
+on ui_control ($cc_4_knob)
+	if ($cc_4_vedit # -1)
+		set_controller ($cc_4_vedit, $cc_4_knob)
+	end if
+end on
+on ui_control ($cc_5_knob)
+	if ($cc_5_vedit # -1)
+		set_controller ($cc_5_vedit, $cc_5_knob)
+	end if
+end on
+on ui_control ($cc_6_knob)
+	if ($cc_6_vedit # -1)
+		set_controller ($cc_6_vedit, $cc_6_knob)
+	end if
+end on
+on ui_control ($cc_7_knob)
+	if ($cc_7_vedit # -1)
+		set_controller ($cc_7_vedit, $cc_7_knob)
+	end if
+end on
+on ui_control ($cc_8_knob)
+	if ($cc_8_vedit # -1)
+		set_controller ($cc_8_vedit, $cc_8_knob)
+	end if
+end on
+
+
+
+on ui_control (@knob_names1)
+    set_text($cc_1_knob, @knob_names1)
+end on
+on ui_control (@knob_names2)
+    set_text($cc_2_knob, @knob_names2)
+end on
+on ui_control (@knob_names3)
+    set_text($cc_3_knob, @knob_names3)
+end on
+on ui_control (@knob_names4)
+    set_text($cc_4_knob, @knob_names4)
+end on
+on ui_control (@knob_names5)
+    set_text($cc_5_knob, @knob_names5)
+end on
+on ui_control (@knob_names6)
+    set_text($cc_6_knob, @knob_names6)
+end on
+on ui_control (@knob_names7)
+    set_text($cc_7_knob, @knob_names7)
+end on
+on ui_control (@knob_names8)
+    set_text($cc_8_knob, @knob_names8)
+end on
+
+on ui_control ($touch_button)
+	if ($cc_1_vedit # -1)
+		set_controller ($cc_1_vedit, $cc_1_knob)
+	end if
+	if ($cc_2_vedit # -1)
+		set_controller ($cc_2_vedit, $cc_2_knob)
+	end if
+	if ($cc_3_vedit # -1)
+		set_controller ($cc_3_vedit, $cc_3_knob)
+	end if
+	if ($cc_4_vedit # -1)
+		set_controller ($cc_4_vedit, $cc_4_knob)
+	end if
+	if ($cc_5_vedit # -1)
+		set_controller ($cc_5_vedit, $cc_5_knob)
+	end if
+	if ($cc_6_vedit # -1)
+		set_controller ($cc_6_vedit, $cc_6_knob)
+	end if
+	if ($cc_7_vedit # -1)
+		set_controller ($cc_7_vedit, $cc_7_knob)
+	end if
+    if ($cc_8_vedit # -1)
+		set_controller ($cc_8_vedit, $cc_8_knob)
+	end if    
+	$touch_button := 0
+end on
+
+on ui_control ($send_button)
+	if ($send_button = 0)
+		$randomize_button := 0
+	end if
+end on
+on ui_control ($randomize_button)
+	if ($send_button = 0)
+	if ($cc_1_vedit # -1)
+		$cc_1_knob := random (0,12700)
+		set_controller ($cc_1_vedit, ($cc_1_knob / 100))
+	end if
+	if ($cc_2_vedit # -1)
+		$cc_2_knob := random (0,12700)
+		set_controller ($cc_2_vedit, ($cc_2_knob / 100))
+	end if
+	if ($cc_3_vedit # -1)
+		$cc_3_knob := random (0,12700)
+		set_controller ($cc_3_vedit, ($cc_3_knob / 100))
+	end if
+	if ($cc_4_vedit # -1)
+		$cc_4_knob := random (0,12700)
+		set_controller ($cc_4_vedit, ($cc_4_knob / 100))
+	end if
+	if ($cc_5_vedit # -1)
+		$cc_5_knob := random (0,12700)
+		set_controller ($cc_5_vedit, ($cc_5_knob / 100))
+	end if
+	if ($cc_6_vedit # -1)
+		$cc_6_knob := random (0,12700)
+		set_controller ($cc_6_vedit, ($cc_6_knob / 100))
+	end if
+	if ($cc_7_vedit # -1)
+		$cc_7_knob := random (0,12700)
+		set_controller ($cc_7_vedit, ($cc_7_knob / 100))
+	end if
+	if ($cc_8_vedit # -1)
+		$cc_8_knob := random (0,12700)
+		set_controller ($cc_8_vedit, ($cc_8_knob / 100))
+	end if    
+	$randomize_button := 0
+	end if
+end on
+on note 
+	if ($send_button = 1 and $randomize_button = 0)
+        if ($cc_1_vedit # -1)
+            set_controller ($cc_1_vedit, ($cc_1_knob / 100))
+        end if
+        if ($cc_2_vedit # -1)
+            set_controller ($cc_2_vedit, ($cc_2_knob / 100))
+        end if
+        if ($cc_3_vedit # -1)
+            set_controller ($cc_3_vedit, ($cc_3_knob / 100))
+        end if
+        if ($cc_4_vedit # -1)
+            set_controller ($cc_4_vedit, ($cc_4_knob / 100))
+        end if
+        if ($cc_5_vedit # -1)
+            set_controller ($cc_5_vedit, ($cc_5_knob / 100))
+        end if
+        if ($cc_6_vedit # -1)
+            set_controller ($cc_6_vedit, ($cc_6_knob / 100))
+        end if
+        if ($cc_7_vedit # -1)
+            set_controller ($cc_7_vedit, ($cc_7_knob / 100))
+        end if
+        if ($cc_8_vedit # -1)
+            set_controller ($cc_8_vedit, ($cc_8_knob / 100))
+        end if        
+	end if
+	if ($send_button = 1 and $randomize_button = 1)
+        $cc_1_knob := random (0,12700)
+        $cc_2_knob := random (0,12700)
+        $cc_3_knob := random (0,12700)
+        $cc_4_knob := random (0,12700)
+        $cc_5_knob := random (0,12700)
+        $cc_6_knob := random (0,12700)
+        $cc_7_knob := random (0,12700)
+        $cc_8_knob := random (0,12700)
+        if ($cc_1_vedit # -1)
+            set_controller ($cc_1_vedit, $cc_1_knob)
+        end if
+        if ($cc_2_vedit # -1)
+            set_controller ($cc_2_vedit, $cc_2_knob)
+        end if
+        if ($cc_3_vedit # -1)
+            set_controller ($cc_3_vedit, $cc_3_knob)
+        end if
+        if ($cc_4_vedit # -1)
+            set_controller ($cc_4_vedit, $cc_4_knob)
+        end if
+        if ($cc_5_vedit # -1)
+            set_controller ($cc_5_vedit, $cc_5_knob)
+        end if
+        if ($cc_6_vedit # -1)
+            set_controller ($cc_6_vedit, $cc_6_knob)
+        end if
+        if ($cc_7_vedit # -1)
+            set_controller ($cc_7_vedit, $cc_7_knob)
+        end if   
+        if ($cc_8_vedit # -1)
+            set_controller ($cc_8_vedit, $cc_8_knob)
+        end if           
+	end if
+	
+end on
