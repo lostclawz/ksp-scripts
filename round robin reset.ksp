@@ -1,0 +1,28 @@
+on init
+    declare ui_label $text (2,1)
+    declare ui_switch $Reset
+    declare $RRpos := 0
+
+    set_text($text,"Round-robin Position:  " & $RRpos+1)
+
+    message("")
+end on
+
+on note
+    disallow_group($ALL_GROUPS)
+    allow_group($RRpos)
+    set_text($text,"Round-robin Position:  " & $RRpos+1)
+    if ($RRpos # 2) { change this number to whatever you want if you need a longer RR chain. If you want 9 groups round-robining, put 8 here. }
+        inc($RRpos)
+    else
+        $RRpos := 0
+    end if
+end on
+
+on ui_control ($Reset)
+    if ($Reset = 1)
+        $RRpos := 0
+        $Reset := 0
+        set_text($text,"Round-robin Position:  " & $RRpos+1)
+    end if
+end on
